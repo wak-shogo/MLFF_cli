@@ -1,0 +1,59 @@
+# /cli_runner/Dockerfile.cli
+
+# Use the same base image as the main application for consistency
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install base system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js (required by some python packages or their extensions)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest
+
+# Set up the working directory
+WORKDIR /workspace
+
+# Copy the build context (the cli_runner directory) into the container.
+COPY . .
+
+# Install Python packages required for the simulation
+# Note: We are excluding streamlit, supervisor, jupyter, etc.
+RUN pip3 install \
+    torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 \
+    numpy \
+    pandas \
+    matplotlib \
+    ase \
+    py3Dmol \
+    nglview \
+    ipywidgets \
+    pymatgen
+
+# Install the MLFF models
+RUN pip3 install \
+    chgnet \
+    mattersim \
+    orb-models \
+    nequip-allegro
+
+# Install MACE from source (same as original Dockerfile)
+# Note: We are not running the pip install for MACE editable mode, just cloning it
+# as the dependent packages might be using it. If direct installation is needed,
+# the line can be uncommented.
+# WORKDIR /mace
+# RUN pip3 install -e .
+# WORKDIR /workspace
+
+# --- Final Setup ---
+# The entrypoint is the CLI script itself.
+# Arguments passed to `docker run` will be appended to this command.
+ENTRYPOINT ["python3", "run_simulation_cli.py"]
