@@ -25,11 +25,11 @@ def get_calculator(model_name, use_device='cuda'):
         orbff = pretrained.orb_v3_conservative_inf_omat(device=use_device, precision="float32-high")
         return ORBCalculator(orbff, device=use_device)
     elif model_name == "NequipOLM":
-        model_path = "NequipOLM_model/nequip-oam-l.nequip.pt2"
+        model_path = "/workspace/NequipOLM_model/nequip-oam-l.nequip.pt2"
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f"NequipOLM model not found at '{model_path}'. "
-                f"Please ensure the model exists at this relative path."
+                f"Please compile the model and place it in the 'NequipOLM_model' directory."
             )
         return NequIPCalculator.from_compiled_model(model_path, device=use_device)
     else: raise ValueError(f"Unknown model specified: {model_name}")
