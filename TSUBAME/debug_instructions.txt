@@ -1,0 +1,17 @@
+---
+I have created a new script named `debug_job.sh` to help diagnose the issue.
+
+This script will:
+1.  Run for 10 minutes on the `q` queue as you requested.
+2.  Print every command it executes into the `simulation.err` file.
+3.  Log environment details like the Python path, installed packages, and GPU status.
+
+Please submit this new script and check the contents of `simulation.out` and especially `simulation.err`. The `simulation.err` file should now contain a detailed execution log that will help us find the problem.
+
+To run the debug job:
+```bash
+qsub debug_job.sh
+```
+
+After the job finishes, please show me the content of `simulation.err` and `simulation.out`.
+---
