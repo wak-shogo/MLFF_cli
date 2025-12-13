@@ -15,8 +15,7 @@
 # Load the necessary modules.
 # The CUDA version might need to be adjusted based on the environment.
 . /etc/profile.d/modules.sh
-module load cuda/11.8
-module load python/3.9.1
+module load cuda/12.3.2
 
 # Activate the Python virtual environment
 VENV_DIR="$HOME/python-venvs/macemp_env"
