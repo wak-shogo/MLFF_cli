@@ -1,0 +1,22 @@
+---
+I have updated the `setup_env.sh` script to fix the errors.
+
+Please follow these steps to rebuild your environment and run the simulation:
+
+1.  **Delete the old environment** to ensure a clean start:
+    ```bash
+    rm -rf ~/python-venvs/macemp_env
+    ```
+
+2.  **Run the updated setup script** to create a new, correct environment:
+    ```bash
+    bash setup_env.sh
+    ```
+
+3.  **Submit the debug job again**:
+    ```bash
+    qsub debug_job.sh
+    ```
+
+This should resolve the errors. Please let me know how it goes.
+---

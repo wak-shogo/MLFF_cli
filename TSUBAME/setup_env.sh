@@ -12,9 +12,11 @@ python3 -m venv "$VENV_DIR"
 echo "Activating the environment..."
 source "$VENV_DIR/bin/activate"
 
+echo "Upgrading setuptools..."
+pip install --upgrade pip setuptools
+
 echo "Installing required Python packages..."
-pip install --upgrade pip
-pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview
+pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann
 
 echo "Deactivating environment."
 deactivate
