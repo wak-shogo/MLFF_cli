@@ -1,0 +1,12 @@
+---
+I have applied a patch to `simulation_utils.py` to resolve the `importlib.metadata` error.
+
+You do **not** need to rebuild the environment.
+
+Please simply submit the debug job again:
+```bash
+qsub debug_job.sh
+```
+
+This should finally resolve the issue. Let me know the result.
+---
