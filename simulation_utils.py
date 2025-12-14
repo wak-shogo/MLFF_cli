@@ -1,5 +1,16 @@
 # simulation_utils.py
 
+# --- Monkey-patch for importlib.metadata in Python 3.9 ---
+# This patch is needed in two places:
+# 1. At the top level, for the main process to import nequip.
+# 2. Inside _run_single_temp_npt, for the joblib worker processes.
+import sys
+if sys.version_info < (3, 10):
+    import importlib_metadata
+    import importlib
+    importlib.metadata = importlib_metadata
+# --- End of patch ---
+
 import numpy as np
 import pandas as pd
 import torch
