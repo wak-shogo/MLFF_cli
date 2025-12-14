@@ -25,7 +25,7 @@ Simulations are submitted as jobs to the TSUBAME scheduler. A template job scrip
 1.  **Customize the job script:**
     Open `job_template.sh` and edit the settings:
     *   **TSUBAME settings:** Modify the `#$` lines (e.g., `-l f_node`, `-l h_rt`) according to your needs.
-    *   **Simulation parameters:** Change the arguments for the `python run_simulation_cli.py` command. You can specify the input CIF file, output directory, model, temperature, and other parameters.
+    *   **Simulation parameters:** Change the arguments for the `python run_simulation_cli.py` command. You can specify the input CIF file, output directory, model, temperature, and other parameters. For example, you can add `--skip-optimization` to bypass the initial structure relaxation before the NPT simulation.
 
 2.  **Submit the job:**
     Use the `qsub` command to submit your job script:

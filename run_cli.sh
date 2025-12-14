@@ -40,10 +40,14 @@ CONTAINER_OUTPUT_DIR="/outputs"
 CONTAINER_CIF_PATH="${CONTAINER_INPUT_DIR}/$(basename "$INPUT_CIF_ABS")"
 
 # --- Docker Build ---
-echo "--- Building CLI Docker image ($IMAGE_NAME) ---"
-# Build using the script's own directory as the build context to keep it small and self-contained.
-docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.cli" "$SCRIPT_DIR"
-echo "--- Build complete ---"
+# Check if the image already exists. If not, build it.
+if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
+    echo "--- Docker image '$IMAGE_NAME' not found. Building... ---"
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.cli" "$SCRIPT_DIR"
+    echo "--- Build complete ---"
+else
+    echo "--- Using existing Docker image '$IMAGE_NAME' ---"
+fi
 
 
 # --- Docker Run ---

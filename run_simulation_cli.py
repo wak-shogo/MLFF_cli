@@ -28,6 +28,7 @@ def main():
     # --- Model and Simulation Parameters ---
     parser.add_argument("--model", type=str, default="CHGNet", choices=["CHGNet", "MatterSim", "Orb", "NequipOLM"], help="ML Force Field model to use.")
     parser.add_argument("--sim-mode", type=str, default="Realistic (ISIF=3)", choices=["Realistic (ISIF=3)", "Legacy (Orthorombic)"], help="Simulation mode.")
+    parser.add_argument("--skip-optimization", action='store_true', help="Skip the initial structure optimization.")
     
     # --- NPT Parameters (for full_simulation) ---
     parser.add_argument("--magmom-specie", type=str, default="Co", help="Species for magnetic moment tracking (e.g., 'Co').")
@@ -56,15 +57,21 @@ def main():
         print(f"Reading structure from {args.cif_path}...")
         atoms = read(args.cif_path)
         
-        print(f"Optimizing structure with {args.model}...")
-        opt_atoms, _, _ = sim.optimize_structure(atoms, model_name=args.model, fmax=0.001)
-        
-        opt_cif_path = os.path.join(args.output_dir, "optimized_structure.cif")
-        write(opt_cif_path, opt_atoms, format="cif")
-        print(f"Saved optimized structure to {opt_cif_path}")
+        if not args.skip_optimization:
+            print(f"Optimizing structure with {args.model}...")
+            opt_atoms, _, _ = sim.optimize_structure(atoms, model_name=args.model, fmax=0.001)
+            
+            opt_cif_path = os.path.join(args.output_dir, "optimized_structure.cif")
+            write(opt_cif_path, opt_atoms, format="cif")
+            print(f"Saved optimized structure to {opt_cif_path}")
+        else:
+            print("--- Skipping structure optimization as requested. ---")
+            opt_atoms = atoms.copy() # Use the original structure
 
         if args.job_type == "optimize_only":
-            print("--- Optimization-only job finished. ---")
+            if args.skip_optimization:
+                print("Warning: --job-type 'optimize_only' has no effect when --skip-optimization is used.")
+            print("--- Optimization job finished. ---")
             return
 
         # --- Run Full NPT Simulation ---

@@ -1,9 +1,0 @@
----
-job_template.sh has been updated.
-
-I have made the following changes:
-1.  Removed `module load python/3.9.1`: As you correctly pointed out, your Python virtual environment handles the Python interpreter, so loading a system-wide Python module is unnecessary and can cause conflicts.
-2.  Updated `module load cuda/11.8` to `module load cuda/12.3.2`: Based on the `module avail cuda` output, `cuda/12.3.2` is an available and more recent version. You can also try `cuda/12.8.0` if you prefer.
-
-Please try submitting the job again with the updated `job_template.sh` and let me know the results.
----

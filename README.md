@@ -44,6 +44,7 @@ The following optional arguments can be passed to the script to control the simu
 | `--job-type` | string | `full_simulation` | `full_simulation`, `optimize_only` | Specifies the type of job. `optimize_only` will only perform structure optimization. |
 | `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM` | The Machine Learning Force Field model to use for the calculation. |
 | `--sim-mode` | string | `Realistic (ISIF=3)` | `Realistic (ISIF=3)`, `Legacy (Orthorombic)` | The simulation mode for cell relaxation. |
+| `--skip-optimization`| flag | `False` | | If specified, the initial structure optimization step will be skipped. |
 | `--magmom-specie`| string | `Co` | | The chemical symbol of the species for which to track magnetic moments (e.g., 'Co', 'Fe'). |
 | `--temp-start` | integer | `1` | | The starting temperature for the NPT simulation in Kelvin. |
 | `--temp-end` | integer | `1000` | | The ending temperature for the NPT simulation in Kelvin. |
