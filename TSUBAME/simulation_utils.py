@@ -1,17 +1,5 @@
 # simulation_utils.py
 
-# --- Monkey-patch for importlib.metadata in Python 3.9 ---
-# The 'nequip' library calls 'importlib.metadata.packages_distributions()',
-# a function only available in Python 3.10+. This patch replaces the
-# standard library's 'importlib.metadata' with the backported
-# 'importlib_metadata' package, which does contain this function.
-import sys
-if sys.version_info < (3, 10):
-    import importlib_metadata
-    import importlib
-    importlib.metadata = importlib_metadata
-# --- End of patch ---
-
 import numpy as np
 import pandas as pd
 import torch
@@ -62,6 +50,14 @@ def optimize_structure(atoms_obj, model_name, fmax=0.01):
     return atoms_obj, energies, lattice_constants
 
 def _run_single_temp_npt(params):
+    # --- Monkey-patch for importlib.metadata in Python 3.9 (for joblib) ---
+    import sys
+    if sys.version_info < (3, 10):
+        import importlib_metadata
+        import importlib
+        importlib.metadata = importlib_metadata
+    # --- End of patch ---
+
     (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, time_step,
      eq_steps, pressure, ttime, pfactor, use_device) = params
     atoms, calc, dyn = None, None, None

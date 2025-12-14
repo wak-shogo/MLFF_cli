@@ -50,6 +50,14 @@ def optimize_structure(atoms_obj, model_name, fmax=0.01):
     return atoms_obj, energies, lattice_constants
 
 def _run_single_temp_npt(params):
+    # --- Monkey-patch for importlib.metadata in Python 3.9 (for joblib) ---
+    import sys
+    if sys.version_info < (3, 10):
+        import importlib_metadata
+        import importlib
+        importlib.metadata = importlib_metadata
+    # --- End of patch ---
+
     (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, time_step,
      eq_steps, pressure, ttime, pfactor, use_device) = params
     atoms, calc, dyn = None, None, None
