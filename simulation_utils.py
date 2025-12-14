@@ -23,16 +23,17 @@ from ase.optimize import BFGS
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.npt import NPT
 from ase import units, Atoms
-from chgnet.model.dynamics import CHGNetCalculator
-from mattersim.forcefield import MatterSimCalculator
-from orb_models.forcefield import pretrained
-from orb_models.forcefield.calculator import ORBCalculator
 
 
 def get_calculator(model_name, use_device='cuda'):
-    if model_name == "CHGNet": return CHGNetCalculator(use_device=use_device)
-    elif model_name == "MatterSim": return MatterSimCalculator(device=use_device)
+    if model_name == "CHGNet":
+        from chgnet.model.dynamics import CHGNetCalculator
+        return CHGNetCalculator(use_device=use_device)
+    elif model_name == "MatterSim":
+        from mattersim.forcefield import MatterSimCalculator
+        return MatterSimCalculator(device=use_device)
     elif model_name == "Orb":
+        from orb_models.forcefield import pretrained, ORBCalculator
         orbff = pretrained.orb_v3_conservative_inf_omat(device=use_device, precision="float32-high")
         return ORBCalculator(orbff, device=use_device)
     elif model_name == "NequipOLM":
@@ -62,14 +63,6 @@ def optimize_structure(atoms_obj, model_name, fmax=0.01):
     return atoms_obj, energies, lattice_constants
 
 def _run_single_temp_npt(params):
-    # --- Monkey-patch for importlib.metadata in Python 3.9 (for joblib) ---
-    import sys
-    if sys.version_info < (3, 10):
-        import importlib_metadata
-        import importlib
-        importlib.metadata = importlib_metadata
-    # --- End of patch ---
-
     (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, time_step,
      eq_steps, pressure, ttime, pfactor, use_device) = params
     atoms, calc, dyn = None, None, None
@@ -97,16 +90,18 @@ def _run_single_temp_npt(params):
         # magmomを記録する原子のインデックスと、それに対応する列名を準備
         magmom_indices = []
         magmom_column_keys = []
-        if magmom_specie and isinstance(atoms.calc, CHGNetCalculator):
-            symbols = atoms.get_chemical_symbols()
-            count = 1
-            for i, s in enumerate(symbols):
-                if s == magmom_specie:
-                    magmom_indices.append(i)
-                    key = f"{magmom_specie}_{count}"
-                    magmom_column_keys.append(key)
-                    results_data[key] = [] # 各原子用の空リストを初期化
-                    count += 1
+        if magmom_specie:
+            from chgnet.model.dynamics import CHGNetCalculator
+            if isinstance(atoms.calc, CHGNetCalculator):
+                symbols = atoms.get_chemical_symbols()
+                count = 1
+                for i, s in enumerate(symbols):
+                    if s == magmom_specie:
+                        magmom_indices.append(i)
+                        key = f"{magmom_specie}_{count}"
+                        magmom_column_keys.append(key)
+                        results_data[key] = [] # 各原子用の空リストを初期化
+                        count += 1
         # ✅ --- 変更点 End ---
 
         def log_step_data():
