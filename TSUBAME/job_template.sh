@@ -26,6 +26,9 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 source "$VENV_DIR/bin/activate"
 
+# Add the MatRIS repository to the Python Path
+export PYTHONPATH="$SGE_O_WORKDIR/MatRIS:$PYTHONPATH"
+
 # --- Simulation Execution ---
 echo "Starting simulation..."
 # The job script runs from the directory it was submitted from ($SGE_O_WORKDIR)

@@ -147,8 +147,19 @@ def _run_single_temp_npt(params):
 # run_npt_simulation_parallel関数は変更不要です
 def run_npt_simulation_parallel(initial_atoms, model_name, sim_mode, magmom_specie, temp_range, time_step, eq_steps,
     pressure, n_gpu_jobs, use_device='cuda', progress_callback=None, traj_filepath=None, append_traj=False):
-    ttime = 25 * units.fs
-    pfactor = 2e6 * units.GPa * (units.fs**2)
+    # --- ✅ パラメータ修正ここから ---
+    # 温度制御の時定数 (推奨: 50-100 fs)
+    ttime = 50 * units.fs 
+    
+    # 圧力制御のパラメータ (Volume依存性を追加)
+    # 想定する体積弾性率(B)と時定数(tau_p)から算出
+    B_modulus = 150 * units.GPa
+    tau_p = 75 * units.fs
+    volume = initial_atoms.get_volume()
+    
+    # ASEの推奨設定: pfactor = B * V * t^2
+    pfactor = B_modulus * volume * (tau_p ** 2)
+    # --- ✅ パラメータ修正ここまで ---
     temperatures = np.arange(temp_range[0], temp_range[1] + temp_range[2], temp_range[2])
     all_results = []
     last_structure_dict = {'numbers': initial_atoms.get_atomic_numbers(), 'positions': initial_atoms.get_positions(), 'cell': initial_atoms.get_cell(), 'pbc': initial_atoms.get_pbc()}

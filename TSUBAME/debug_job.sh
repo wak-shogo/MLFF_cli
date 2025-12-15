@@ -33,6 +33,9 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 source "$VENV_DIR/bin/activate"
 
+# Add the MatRIS repository to the Python Path
+export PYTHONPATH="$SGE_O_WORKDIR/MatRIS:$PYTHONPATH"
+
 echo "Checking Python executable path..."
 which python
 

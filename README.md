@@ -44,7 +44,7 @@ The following optional arguments can be passed to the script to control the simu
 | Argument | Type | Default | Choices | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `--job-type` | string | `full_simulation` | `full_simulation`, `optimize_only` | Specifies the type of job. `optimize_only` will only perform structure optimization. |
-| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, `MatRIS` | The Machine Learning Force Field model to use for the calculation. |
+| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, `MatRIS` | The Machine Learning Force Field model to use for the calculation. (Note: MatRIS is included by cloning its GitHub repository into the image). |
 | `--sim-mode` | string | `Realistic (ISIF=3)` | `Realistic (ISIF=3)`, `Legacy (Orthorombic)` | The simulation mode for cell relaxation. |
 | `--skip-optimization`| flag | `False` | | If specified, the initial structure optimization step will be skipped. |
 | `--fmax` | float | `0.001` | | Maximum force (eV/Å) for structure optimization convergence. |

@@ -16,7 +16,13 @@ echo "Upgrading setuptools..."
 pip install --upgrade pip setuptools
 
 echo "Installing required Python packages..."
-pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann git+https://github.com/HPC-AI-Team/MatRIS.git@main
+pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann
+
+echo "---"
+echo "IMPORTANT: To use the MatRIS model, you must manually clone the repository into this directory:"
+echo "git clone https://github.com/HPC-AI-Team/MatRIS.git"
+echo "---"
+
 
 echo "Deactivating environment."
 deactivate

@@ -1,0 +1,19 @@
+Thank you for your patience. I have investigated the installation method for `matris`.
+
+My investigation suggests that `matris` is available on the standard Python Package Index (PyPI), and the correct way to install it is `pip install matris`, not directly from GitHub. The GitHub installation method I used previously was likely incorrect and did not properly register the package.
+
+I have updated both `setup_env.sh` (for TSUBAME) and `Dockerfile.cli` (for Docker) to use this standard installation method.
+
+To apply this fix, you will need to rebuild your Docker image one more time.
+
+1.  **Delete the old Docker image:**
+    ```bash
+    docker rmi -f md-cli-runner
+    ```
+
+2.  **Re-run your command:** This will trigger a fresh build using the corrected installation command.
+    ```bash
+    bash run_cli.sh ./BiCoO3_tetra_444.cif ./projects/BCO444_op_matris --model MatRIS --job-type "optimize_only" --fmax 0.005
+    ```
+
+This should resolve the `ModuleNotFoundError`.

@@ -4,15 +4,20 @@ This directory contains the necessary scripts to run machine learning force fiel
 
 ## 1. Environment Setup
 
-First, you need to create a dedicated Python virtual environment. The provided script will install all necessary packages.
+First, you need to create a dedicated Python virtual environment and download the required model repositories.
 
-1.  **Run the setup script:**
+1.  **Set up the Python environment:**
+    The provided script will install all necessary pip packages.
     ```bash
     bash setup_env.sh
     ```
-    This will create a virtual environment in `~/python-venvs/macemp_env` and install the required libraries. You only need to do this once.
 
-2.  **Activate the environment:**
+2.  **Clone the MatRIS repository (if using the MatRIS model):**
+    ```bash
+    git clone https://github.com/HPC-AI-Team/MatRIS.git
+    ```
+
+3.  **Activate the environment:**
     Before running any simulation, you must activate the environment in your shell:
     ```bash
     source ~/python-venvs/macemp_env/bin/activate
