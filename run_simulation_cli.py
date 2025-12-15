@@ -26,8 +26,9 @@ def main():
     parser.add_argument("--job-type", type=str, default="full_simulation", choices=["full_simulation", "optimize_only"], help="Type of job to run.")
 
     # --- Model and Simulation Parameters ---
-    parser.add_argument("--model", type=str, default="CHGNet", choices=["CHGNet", "MatterSim", "Orb", "NequipOLM"], help="ML Force Field model to use.")
+    parser.add_argument("--model", type=str, default="CHGNet", choices=["CHGNet", "MatterSim", "Orb", "NequipOLM", "MatRIS"], help="ML Force Field model to use.")
     parser.add_argument("--sim-mode", type=str, default="Realistic (ISIF=3)", choices=["Realistic (ISIF=3)", "Legacy (Orthorombic)"], help="Simulation mode.")
+    parser.add_argument("--fmax", type=float, default=0.001, help="Maximum force (eV/Å) for structure optimization convergence.")
     parser.add_argument("--skip-optimization", action='store_true', help="Skip the initial structure optimization.")
     
     # --- NPT Parameters (for full_simulation) ---
@@ -59,7 +60,7 @@ def main():
         
         if not args.skip_optimization:
             print(f"Optimizing structure with {args.model}...")
-            opt_atoms, _, _ = sim.optimize_structure(atoms, model_name=args.model, fmax=0.001)
+            opt_atoms, _, _ = sim.optimize_structure(atoms, model_name=args.model, fmax=args.fmax)
             
             opt_cif_path = os.path.join(args.output_dir, "optimized_structure.cif")
             write(opt_cif_path, opt_atoms, format="cif")

@@ -30,13 +30,16 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 # Convert user-provided paths to absolute paths to ensure they mount correctly
 INPUT_CIF_ABS=$(realpath "$INPUT_CIF_PATH")
-# Create the output directory on the host if it doesn't exist
+# Create the output directory and a persistent model directory on the host
 mkdir -p "$OUTPUT_DIR_PATH"
+mkdir -p "$SCRIPT_DIR/models/NequipOLM_model"
 OUTPUT_DIR_ABS=$(realpath "$OUTPUT_DIR_PATH")
+MODELS_DIR_ABS=$(realpath "$SCRIPT_DIR/models")
 
 # Define paths as they will be seen inside the container
 CONTAINER_INPUT_DIR="/inputs"
 CONTAINER_OUTPUT_DIR="/outputs"
+CONTAINER_MODELS_DIR="/workspace/models" # Nequip model will be compiled into a subdir of this
 CONTAINER_CIF_PATH="${CONTAINER_INPUT_DIR}/$(basename "$INPUT_CIF_ABS")"
 
 # --- Docker Build ---
@@ -54,6 +57,7 @@ fi
 echo "--- Starting simulation container ---"
 echo "Host input CIF: $INPUT_CIF_ABS"
 echo "Host output dir:  $OUTPUT_DIR_ABS"
+echo "Host models dir:  $MODELS_DIR_ABS/NequipOLM_model"
 echo "Container CIF path: $CONTAINER_CIF_PATH"
 echo "-------------------------------------"
 
@@ -63,11 +67,13 @@ echo "-------------------------------------"
 # -v: Mount volumes to get data in and out of the container
 #   - Mount the directory containing the input file as /inputs
 #   - Mount the host output directory as /outputs
+#   - Mount the host models directory to persist compiled models
 docker run \
     --rm \
     --gpus all \
     -v "$(dirname "$INPUT_CIF_ABS")":"$CONTAINER_INPUT_DIR" \
     -v "$OUTPUT_DIR_ABS":"$CONTAINER_OUTPUT_DIR" \
+    -v "$MODELS_DIR_ABS/NequipOLM_model":"/workspace/NequipOLM_model" \
     "$IMAGE_NAME" \
     --cif-path "$CONTAINER_CIF_PATH" \
     --output-dir "$CONTAINER_OUTPUT_DIR" \

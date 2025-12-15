@@ -33,16 +33,20 @@ def get_calculator(model_name, use_device='cuda'):
         from mattersim.forcefield import MatterSimCalculator
         return MatterSimCalculator(device=use_device)
     elif model_name == "Orb":
-        from orb_models.forcefield import pretrained, ORBCalculator
+        from orb_models.forcefield import pretrained
+        from orb_models.forcefield.calculator import ORBCalculator
         orbff = pretrained.orb_v3_conservative_inf_omat(device=use_device, precision="float32-high")
         return ORBCalculator(orbff, device=use_device)
+    elif model_name == "MatRIS":
+        from matris.applications.base import MatRISCalculator
+        return MatRISCalculator(model='matris_10m_oam', task='efsm', device=use_device)
     elif model_name == "NequipOLM":
         from nequip.ase import NequIPCalculator
         model_path = "NequipOLM_model/nequip-oam-l.nequip.pt2"
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f"NequipOLM model not found at '{model_path}'. "
-                f"Please ensure the model exists at this relative path."
+                f"It should be compiled automatically at the container's first run."
             )
         return NequIPCalculator.from_compiled_model(model_path, device=use_device)
     else: raise ValueError(f"Unknown model specified: {model_name}")

@@ -33,16 +33,20 @@ def get_calculator(model_name, use_device='cuda'):
         from mattersim.forcefield import MatterSimCalculator
         return MatterSimCalculator(device=use_device)
     elif model_name == "Orb":
-        from orb_models.forcefield import pretrained, ORBCalculator
+        from orb_models.forcefield import pretrained
+        from orb_models.forcefield.calculator import ORBCalculator
         orbff = pretrained.orb_v3_conservative_inf_omat(device=use_device, precision="float32-high")
         return ORBCalculator(orbff, device=use_device)
+    elif model_name == "MatRIS":
+        from matris.applications.base import MatRISCalculator
+        return MatRISCalculator(model='matris_10m_oam', task='efsm', device=use_device)
     elif model_name == "NequipOLM":
         from nequip.ase import NequIPCalculator
         model_path = "NequipOLM_model/nequip-oam-l.nequip.pt2"
         if not os.path.exists(model_path):
             raise FileNotFoundError(
                 f"NequipOLM model not found at '{model_path}'. "
-                f"Please ensure the model exists at this relative path."
+                f"It should be compiled automatically at the container's first run."
             )
         return NequIPCalculator.from_compiled_model(model_path, device=use_device)
     else: raise ValueError(f"Unknown model specified: {model_name}")
@@ -51,15 +55,33 @@ def clear_memory():
     gc.collect()
     if torch.cuda.is_available(): torch.cuda.empty_cache()
 
+# simulation_utils.py の import 部分に追加
+from ase.optimize import BFGS, FIRE  # FIREを追加
+
+# optimize_structure 関数を修正
 def optimize_structure(atoms_obj, model_name, fmax=0.01):
     energies, lattice_constants = [], []
     atoms_obj.calc = get_calculator(model_name)
     atoms_filter = ExpCellFilter(atoms_obj)
-    opt = BFGS(atoms_filter)
+
+    # --- 修正点: BFGS から FIRE に変更 ---
+    # MLFFでのセル緩和はFIREの方が圧倒的に安定します
+    opt = FIRE(atoms_filter)
+
     def save_step_data(a=atoms_filter):
         energies.append(a.atoms.get_potential_energy())
-        lattice_constants.append(np.mean(a.atoms.get_cell().lengths()))
-    opt.attach(save_step_data); opt.run(fmax=fmax)
+        # ExpCellFilter越しだと .atoms が隠れる場合があるので注意して取得
+        # (通常は a.atoms で実体にアクセス可能)
+        if hasattr(a, "atoms"):
+             lattice_constants.append(np.mean(a.atoms.get_cell().lengths()))
+        else:
+             lattice_constants.append(np.mean(a.get_cell().lengths()))
+
+    opt.attach(save_step_data)
+
+    # FIREの場合、stepごとのログが多すぎると煩わしい場合、logfile=Noneにする手もあります
+    opt.run(fmax=fmax)
+
     return atoms_obj, energies, lattice_constants
 
 def _run_single_temp_npt(params):

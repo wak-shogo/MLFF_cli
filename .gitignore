@@ -1,2 +1,5 @@
 # Ignore the projects directory
 projects/
+
+# Ignore compiled models
+models/

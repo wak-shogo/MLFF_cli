@@ -35,6 +35,8 @@ bash run_cli.sh ./my_structure.cif ./my_results --temp-end 500
 
 **Note:** The first time you run the script, it will build the Docker image, which may take several minutes. Subsequent runs will be much faster as they will use the existing image.
 
+**Note on Models:** Some models, like NequipOLM, require a one-time compilation step. This will happen automatically the first time you run a simulation with that model. The compiled model will be saved in a new `models/` directory in your project folder to avoid recompilation on future runs.
+
 ## Command-Line Arguments (`OPTIONS`)
 
 The following optional arguments can be passed to the script to control the simulation details.
@@ -42,9 +44,10 @@ The following optional arguments can be passed to the script to control the simu
 | Argument | Type | Default | Choices | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | `--job-type` | string | `full_simulation` | `full_simulation`, `optimize_only` | Specifies the type of job. `optimize_only` will only perform structure optimization. |
-| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM` | The Machine Learning Force Field model to use for the calculation. |
+| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, `MatRIS` | The Machine Learning Force Field model to use for the calculation. |
 | `--sim-mode` | string | `Realistic (ISIF=3)` | `Realistic (ISIF=3)`, `Legacy (Orthorombic)` | The simulation mode for cell relaxation. |
 | `--skip-optimization`| flag | `False` | | If specified, the initial structure optimization step will be skipped. |
+| `--fmax` | float | `0.001` | | Maximum force (eV/Å) for structure optimization convergence. |
 | `--magmom-specie`| string | `Co` | | The chemical symbol of the species for which to track magnetic moments (e.g., 'Co', 'Fe'). |
 | `--temp-start` | integer | `1` | | The starting temperature for the NPT simulation in Kelvin. |
 | `--temp-end` | integer | `1000` | | The ending temperature for the NPT simulation in Kelvin. |

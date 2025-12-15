@@ -43,17 +43,14 @@ RUN pip3 install \
     chgnet \
     mattersim \
     orb-models \
-    nequip-allegro
+    nequip-allegro \
+    git+https://github.com/HPC-AI-Team/MatRIS.git@main
 
-# Install MACE from source (same as original Dockerfile)
-# Note: We are not running the pip install for MACE editable mode, just cloning it
-# as the dependent packages might be using it. If direct installation is needed,
-# the line can be uncommented.
-# WORKDIR /mace
-# RUN pip3 install -e .
-# WORKDIR /workspace
+# Copy the entrypoint script and make it executable
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
 
 # --- Final Setup ---
-# The entrypoint is the CLI script itself.
-# Arguments passed to `docker run` will be appended to this command.
-ENTRYPOINT ["python3", "run_simulation_cli.py"]
+# The entrypoint is now a shell script that handles model compilation
+# before running the python script.
+ENTRYPOINT ["/workspace/entrypoint.sh"]
