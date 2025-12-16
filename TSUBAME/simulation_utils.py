@@ -20,7 +20,7 @@ from joblib import Parallel, delayed
 from ase.io import read, write
 from ase.filters import ExpCellFilter
 from ase.optimize import BFGS
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.md.npt import NPT
 from ase import units, Atoms
 
@@ -68,7 +68,7 @@ def optimize_structure(atoms_obj, model_name, fmax=0.01):
 
 def _run_single_temp_npt(params):
     (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, time_step,
-     eq_steps, pressure, ttime, pfactor, use_device) = params
+     eq_steps, pressure, ttime, use_device) = params
     atoms, calc, dyn = None, None, None
     try:
         atoms = Atoms(**initial_structure_dict)
@@ -126,9 +126,44 @@ def _run_single_temp_npt(params):
                     results_data[key].append(all_magmoms[atom_idx])
             # ✅ --- 変更点 End ---
 
+        # --- MD Initialization ---
         MaxwellBoltzmannDistribution(atoms, temperature_K=temp, force_temp=True)
-        dyn = NPT(atoms, timestep=time_step * units.fs, temperature_K=temp, externalstress=pressure * units.bar, ttime=ttime, pfactor=pfactor, mask=npt_mask)
-        dyn.attach(log_step_data, interval=10); dyn.run(eq_steps)
+        Stationary(atoms)
+        
+        # ==========================================
+        # ✅ Phase 1: 初期緩和 (安定性重視)
+        # ==========================================
+        # 目的: MD開始の衝撃で対称性が壊れるのを防ぐ
+        # 設定: バロスタットを重く、硬くする
+        pfactor_heavy = (150 * units.GPa) * atoms.get_volume() * ((75 * units.fs) ** 2)
+        
+        dyn_stable = NPT(
+            atoms, timestep=time_step * units.fs, temperature_K=temp, 
+            externalstress=pressure * units.bar, ttime=ttime, 
+            pfactor=pfactor_heavy, mask=npt_mask
+        )
+        # ログは取らずに、静かに200ステップほど回して落ち着かせる
+        dyn_stable.run(200)
+        
+        # ==========================================
+        # ✅ Phase 2: 本番データ取得 (相転移探索)
+        # ==========================================
+        # 目的: 体積ゆらぎを大きくして相転移を捕まえる
+        # 設定: バロスタットを軽く、柔らかくする (ドーピング設定)
+        B_sensitive = 20 * units.GPa
+        tau_sensitive = 25 * units.fs
+        pfactor_sensitive = B_sensitive * atoms.get_volume() * (tau_sensitive ** 2)
+
+        # 新しい設定でNPTを作り直す
+        dyn = NPT(
+            atoms, timestep=time_step * units.fs, temperature_K=temp, 
+            externalstress=pressure * units.bar, ttime=ttime, 
+            pfactor=pfactor_sensitive, mask=npt_mask
+        )
+        
+        # ここからログを取り始める
+        dyn.attach(log_step_data, interval=10)
+        dyn.run(eq_steps) # 指定されたステップ数 (例: 20000) 走らせる
         
         final_structure_dict = {'numbers': atoms.get_atomic_numbers(), 'positions': atoms.get_positions(), 'cell': atoms.get_cell(), 'pbc': atoms.get_pbc()}
         
@@ -171,7 +206,7 @@ def run_npt_simulation_parallel(initial_atoms, model_name, sim_mode, magmom_spec
         temp_batch = temperatures[batch_start_index:batch_end_index]
         if not len(temp_batch) > 0: continue
         
-        tasks = [(model_name, sim_mode, t, last_structure_dict, magmom_specie, time_step, eq_steps, pressure, ttime, pfactor, use_device) for t in temp_batch]
+        tasks = [(model_name, sim_mode, t, last_structure_dict, magmom_specie, time_step, eq_steps, pressure, ttime, use_device) for t in temp_batch]
         batch_results = Parallel(n_jobs=n_gpu_jobs, mmap_mode='r+')(delayed(_run_single_temp_npt)(task) for task in tasks)
         
         valid_results = [res for res in batch_results if res is not None]
