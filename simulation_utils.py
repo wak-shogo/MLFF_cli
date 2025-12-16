@@ -59,7 +59,7 @@ def optimize_structure(atoms_obj, model_name, fmax=0.01):
     energies, lattice_constants = [], []
     atoms_obj.calc = get_calculator(model_name)
     atoms_filter = ExpCellFilter(atoms_obj)
-    opt = BFGS(atoms_filter)
+    opt = FIRE(atoms_filter)
     def save_step_data(a=atoms_filter):
         energies.append(a.atoms.get_potential_energy())
         lattice_constants.append(np.mean(a.atoms.get_cell().lengths()))

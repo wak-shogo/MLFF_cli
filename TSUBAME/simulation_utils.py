@@ -19,7 +19,7 @@ import os
 from joblib import Parallel, delayed
 from ase.io import read, write
 from ase.filters import ExpCellFilter
-from ase.optimize import BFGS
+from ase.optimize import BFGS, FIRE
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
 from ase.md.npt import NPT
 from ase import units, Atoms
