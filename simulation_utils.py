@@ -70,9 +70,29 @@ def get_calculator(model_name, use_device='cuda'):
             pass # Backend might already be set or not switchable
             
         from matgl.ext.ase import PESCalculator
-        model_path = "/opt/models/CHGNet_r2SCAN"
-        if not os.path.exists(model_path):
-            raise FileNotFoundError(f"CHGNet_r2SCAN model not found at '{model_path}'.")
+        # Search for the model in potential locations
+        possible_paths = [
+            os.environ.get("CHGNET_R2SCAN_PATH"),
+            os.path.join(os.getcwd(), "CHGNet_r2SCAN"),
+            os.path.join(os.getcwd(), "models", "CHGNet_r2SCAN"),
+            "/opt/models/CHGNet_r2SCAN"
+        ]
+        
+        model_path = None
+        for p in possible_paths:
+            if p and os.path.exists(p):
+                model_path = p
+                break
+        
+        if model_path is None:
+            raise FileNotFoundError(
+                "CHGNet_r2SCAN model not found. Checked locations:\n" + 
+                "\n".join(filter(None, possible_paths)) + 
+                "\nPlease place the 'CHGNet_r2SCAN' model folder in the current directory or 'models/' subdirectory, "
+                "or set the CHGNET_R2SCAN_PATH environment variable."
+            )
+        
+        print(f"Loading CHGNet_r2SCAN model from: {model_path}")
         potential = matgl.load_model(model_path)
         # Move model to device
         potential.to(use_device)

@@ -56,3 +56,4 @@ qsub job_template.sh
 
 *   The scripts can use `CHGNet`, `CHGNet_r2SCAN`, `MatterSim`, `Orb`, `NequipOLM`, and `MatRIS` models.
 *   If you use the `NequipOLM` model, you must place the compiled model file (`nequip-oam-l.nequip.pt2`) in a directory named `NequipOLM_model` within this (`TSUBAME`) directory. The expected path is `./NequipOLM_model/nequip-oam-l.nequip.pt2`.
+*   **CHGNet_r2SCAN Model:** The script searches for the `CHGNet_r2SCAN` model directory in `./CHGNet_r2SCAN`, `./models/CHGNet_r2SCAN`, or the path specified by the `CHGNET_R2SCAN_PATH` environment variable. You must upload the model folder to one of these locations on TSUBAME.
