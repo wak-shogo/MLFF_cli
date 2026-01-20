@@ -18,7 +18,7 @@
 module load cuda/12.3.2
 
 # Activate the Python virtual environment
-VENV_DIR="$HOME/python-venvs/macemp_env"
+VENV_DIR="$HOME/work/python-venvs/macemp_env"
 if [ ! -d "$VENV_DIR" ]; then
     echo "Error: Python environment not found at $VENV_DIR" >&2
     echo "Please run the setup_env.sh script first." >&2

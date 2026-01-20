@@ -20,7 +20,7 @@ First, you need to create a dedicated Python virtual environment and download th
 3.  **Activate the environment:**
     Before running any simulation, you must activate the environment in your shell:
     ```bash
-    source ~/python-venvs/macemp_env/bin/activate
+    source ~/work/python-venvs/macemp_env/bin/activate
     ```
 
 ## 2. Running a Simulation

@@ -3,10 +3,11 @@
 # This script sets up a Python virtual environment for the simulation.
 
 # --- Configuration ---
-VENV_DIR="$HOME/python-venvs/macemp_env"
+VENV_DIR="$HOME/work/python-venvs/macemp_env"
 
 # --- Main Script ---
 echo "Creating Python virtual environment at: $VENV_DIR"
+mkdir -p "$(dirname "$VENV_DIR")"
 python3 -m venv "$VENV_DIR"
 
 echo "Activating the environment..."
