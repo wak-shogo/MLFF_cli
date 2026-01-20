@@ -16,7 +16,16 @@ echo "Upgrading setuptools..."
 pip install --upgrade pip setuptools
 
 echo "Installing required Python packages..."
-pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann matgl dgl tqdm
+
+# 1. Install PyTorch (CUDA 12.1 version)
+# Using CUDA 12.1 as it is compatible with the TSUBAME environment (Driver 12.9)
+pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu121
+
+# 2. Install DGL (CUDA 12.1 version compatible with Torch 2.4)
+pip install dgl -f https://data.dgl.ai/wheels/torch-2.4/cu121/repo.html
+
+# 3. Install other dependencies
+pip install pandas ase matplotlib joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann matgl tqdm
 
 echo "---"
 echo "Downloading CHGNet_r2SCAN model..."
