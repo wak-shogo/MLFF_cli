@@ -4,12 +4,17 @@ import os
 import sys
 import time
 import json
+import math
+import numpy as np
 import pandas as pd
 from ase.io import read, write
 from ase import Atoms
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
+# プログレスバー表示用
+from tqdm import tqdm
 
 # The required modules (simulation_utils, visualization) are now in the same directory.
 import simulation_utils as sim
@@ -26,7 +31,7 @@ def main():
     parser.add_argument("--job-type", type=str, default="full_simulation", choices=["full_simulation", "optimize_only"], help="Type of job to run.")
 
     # --- Model and Simulation Parameters ---
-    parser.add_argument("--model", type=str, default="CHGNet", choices=["CHGNet", "MatterSim", "Orb", "NequipOLM", "MatRIS"], help="ML Force Field model to use.")
+    parser.add_argument("--model", type=str, default="CHGNet_r2SCAN", choices=["CHGNet", "CHGNet_r2SCAN", "MatterSim", "Orb", "NequipOLM", "MatRIS"], help="ML Force Field model to use.")
     parser.add_argument("--sim-mode", type=str, default="Realistic (ISIF=3)", choices=["Realistic (ISIF=3)", "Legacy (Orthorombic)"], help="Simulation mode.")
     parser.add_argument("--fmax", type=float, default=0.001, help="Maximum force (eV/Å) for structure optimization convergence.")
     parser.add_argument("--skip-optimization", action='store_true', help="Skip the initial structure optimization.")
@@ -77,18 +82,46 @@ def main():
 
         # --- Run Full NPT Simulation ---
         print("\n--- Starting NPT Simulation ---")
-        temp_range = (args.temp_start, args.temp_end, args.temp_step)
         traj_filepath = os.path.join(args.output_dir, "trajectory.xyz")
+
+        # 進捗表示用のヘルパー関数
+        def get_progress_manager(temp_list, desc):
+            num_batches = math.ceil(len(temp_list) / args.n_gpu_jobs)
+            pbar = tqdm(total=num_batches, desc=desc, unit="batch", bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}] {postfix}")
+            
+            def callback(batch_idx, total_batches, msg, df):
+                # simulation_utilsは batch_idx (開始時) と batch_idx+1 (終了時) でコールバックする仕様
+                # メッセージ内容で判定する
+                if "running" in msg:
+                    # 現在計算中の温度を計算して表示
+                    start_idx = batch_idx * args.n_gpu_jobs
+                    end_idx = min(start_idx + args.n_gpu_jobs, len(temp_list))
+                    current_temps = temp_list[start_idx:end_idx]
+                    temp_str = ", ".join([f"{int(t)}K" for t in current_temps])
+                    pbar.set_postfix_str(f"Processing: {temp_str}")
+                elif "finished" in msg:
+                    pbar.update(1)
+            
+            return pbar, callback
 
         # --- Heating Phase ---
         print(f"🔥 Starting Heating Phase ({args.temp_start}K -> {args.temp_end}K)...")
-        npt_df_heating, heating_final_struct = sim.run_npt_simulation_parallel(
-            initial_atoms=opt_atoms, model_name=args.model, sim_mode=args.sim_mode,
-            magmom_specie=args.magmom_specie, temp_range=temp_range,
-            time_step=1.0, eq_steps=args.eq_steps, pressure=1.0,
-            n_gpu_jobs=args.n_gpu_jobs, progress_callback=None, # No realtime callback for CLI
-            traj_filepath=traj_filepath, append_traj=False
-        )
+        
+        # 温度リストを事前生成（プログレスバー用）
+        heating_temps = np.arange(args.temp_start, args.temp_end + args.temp_step, args.temp_step)
+        
+        pbar_heat, callback_heat = get_progress_manager(heating_temps, "Heating")
+        
+        with pbar_heat:
+            temp_range = (args.temp_start, args.temp_end, args.temp_step)
+            npt_df_heating, heating_final_struct = sim.run_npt_simulation_parallel(
+                initial_atoms=opt_atoms, model_name=args.model, sim_mode=args.sim_mode,
+                magmom_specie=args.magmom_specie, temp_range=temp_range,
+                time_step=1.0, eq_steps=args.eq_steps, pressure=1.0,
+                n_gpu_jobs=args.n_gpu_jobs, progress_callback=callback_heat,
+                traj_filepath=traj_filepath, append_traj=False
+            )
+        
         if npt_df_heating.empty:
             raise ValueError("Heating phase failed or produced no data.")
         
@@ -98,15 +131,26 @@ def main():
         # --- Cooling Phase ---
         if args.enable_cooling:
             print(f"❄️ Starting Cooling Phase ({args.temp_end}K -> {args.temp_start}K)...")
+            
+            # 冷却時の温度リスト（終了判定に注意）
+            # simulation_utilsは (start, end, step) で生成するため、負のステップの場合は start > end となる
+            cooling_temps = np.arange(args.temp_end, args.temp_start - args.temp_step, -args.temp_step)
+            # arangeの仕様上、最後の要素が含まれない場合があるので調整（utilsと同じロジックにする）
             cooling_temp_range = (args.temp_end, args.temp_start, -args.temp_step)
-            cooling_initial_atoms = Atoms(**heating_final_struct)
-            npt_df_cooling, _ = sim.run_npt_simulation_parallel(
-                initial_atoms=cooling_initial_atoms, model_name=args.model, sim_mode=args.sim_mode,
-                magmom_specie=args.magmom_specie, temp_range=cooling_temp_range,
-                time_step=1.0, eq_steps=args.eq_steps, pressure=1.0,
-                n_gpu_jobs=args.n_gpu_jobs, progress_callback=None,
-                traj_filepath=traj_filepath, append_traj=True
-            )
+            # 実際のutils内での生成ロジックと合わせるため、ここでは一旦rangeオブジェクト的に扱う
+            
+            pbar_cool, callback_cool = get_progress_manager(cooling_temps, "Cooling")
+            
+            with pbar_cool:
+                cooling_initial_atoms = Atoms(**heating_final_struct)
+                npt_df_cooling, _ = sim.run_npt_simulation_parallel(
+                    initial_atoms=cooling_initial_atoms, model_name=args.model, sim_mode=args.sim_mode,
+                    magmom_specie=args.magmom_specie, temp_range=cooling_temp_range,
+                    time_step=1.0, eq_steps=args.eq_steps, pressure=1.0,
+                    n_gpu_jobs=args.n_gpu_jobs, progress_callback=callback_cool,
+                    traj_filepath=traj_filepath, append_traj=True
+                )
+            
             if not npt_df_cooling.empty:
                 npt_df = pd.concat([npt_df_heating, npt_df_cooling], ignore_index=True)
                 print("✅ Cooling Phase Completed.")

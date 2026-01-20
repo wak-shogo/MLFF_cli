@@ -42,7 +42,7 @@ Simulations are submitted as jobs to the TSUBAME scheduler. A template job scrip
 
 ## Example
 
-The `job_template.sh` is pre-configured to run a simulation on `BiCoO3_tetra_1244_op_25.cif` using the `CHGNet` model. You can run it directly after setting up the environment.
+The `job_template.sh` is pre-configured to run a simulation on `BiCoO3_tetra_1244_op_25.cif` using the `CHGNet_r2SCAN` model. You can run it directly after setting up the environment.
 
 ```bash
 # 1. Set up the environment (only once)
@@ -54,5 +54,5 @@ qsub job_template.sh
 
 ## Note on Models
 
-*   The scripts can use `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, and `MatRIS` models.
+*   The scripts can use `CHGNet`, `CHGNet_r2SCAN`, `MatterSim`, `Orb`, `NequipOLM`, and `MatRIS` models.
 *   If you use the `NequipOLM` model, you must place the compiled model file (`nequip-oam-l.nequip.pt2`) in a directory named `NequipOLM_model` within this (`TSUBAME`) directory. The expected path is `./NequipOLM_model/nequip-oam-l.nequip.pt2`.

@@ -16,7 +16,7 @@ echo "Upgrading setuptools..."
 pip install --upgrade pip setuptools
 
 echo "Installing required Python packages..."
-pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann
+pip install pandas ase matplotlib torch joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann matgl dgl tqdm
 
 echo "---"
 echo "IMPORTANT: To use the MatRIS model, you must manually clone the repository into this directory:"

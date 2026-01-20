@@ -1,5 +1,35 @@
-# Ignore the projects directory
-projects/
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
 
-# Ignore compiled models
+# Data & Results
+projects/
+results/
+data/
+wandb/
+*.log
+*.csv
+*.png
+*.xyz
+*.traj
+*.cif
+*.json
+
+# Models (large files)
 models/
+NequipOLM_model/
+
+# TSUBAME logs
+TSUBAME/*.out
+TSUBAME/*.err
+TSUBAME/simulation.out
+TSUBAME/simulation.err
+
+# Misc
+.DS_Store
+*.bak
+*_fix_summary.txt

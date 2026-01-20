@@ -1,9 +1,6 @@
 # simulation_utils.py
 
 # --- Monkey-patch for importlib.metadata in Python 3.9 ---
-# This patch is needed in two places:
-# 1. At the top level, for the main process to import nequip.
-# 2. Inside _run_single_temp_npt, for the joblib worker processes.
 import sys
 if sys.version_info < (3, 10):
     import importlib_metadata
@@ -20,15 +17,33 @@ from joblib import Parallel, delayed
 from ase.io import read, write
 from ase.filters import ExpCellFilter
 from ase.optimize import BFGS, FIRE
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution, Stationary, ZeroRotation
+from ase.md.langevin import Langevin
 from ase.md.npt import NPT
 from ase import units, Atoms
 
-
 def get_calculator(model_name, use_device='cuda'):
+    # Check if CUDA is actually available if requested
+    if use_device == 'cuda' and not torch.cuda.is_available():
+        print("Warning: CUDA requested but not available. Falling back to CPU.")
+        use_device = 'cpu'
+
+    # メモリ節約のため、CHGNetのインスタンス作成時にメモリ管理を厳格化
     if model_name == "CHGNet":
         from chgnet.model.dynamics import CHGNetCalculator
-        return CHGNetCalculator(use_device=use_device)
+        try:
+            return CHGNetCalculator(use_device=use_device)
+        except IndexError:
+            # Fallback for the "list index out of range" error in determine_device
+            if use_device == 'cuda':
+                print("Warning: CHGNet auto-device detection failed (IndexError). Attempting 'cuda:0'.")
+                try:
+                    return CHGNetCalculator(use_device='cuda:0')
+                except Exception:
+                    pass
+            
+            print("Warning: CHGNet device initialization failed. Falling back to CPU.")
+            return CHGNetCalculator(use_device='cpu')
     elif model_name == "MatterSim":
         from mattersim.forcefield import MatterSimCalculator
         return MatterSimCalculator(device=use_device)
@@ -42,13 +57,57 @@ def get_calculator(model_name, use_device='cuda'):
         return MatRISCalculator(model='matris_10m_oam', task='efsm', device=use_device)
     elif model_name == "NequipOLM":
         from nequip.ase import NequIPCalculator
-        model_path = "NequipOLM_model/nequip-oam-l.nequip.pt2"
+        model_path = "/workspace/NequipOLM_model/nequip-oam-l.nequip.pt2"
         if not os.path.exists(model_path):
-            raise FileNotFoundError(
-                f"NequipOLM model not found at '{model_path}'. "
-                f"It should be compiled automatically at the container's first run."
-            )
+            raise FileNotFoundError(f"NequipOLM model not found at '{model_path}'.")
         return NequIPCalculator.from_compiled_model(model_path, device=use_device)
+    elif model_name == "CHGNet_r2SCAN":
+        import matgl
+        # DGL backend is required for CHGNet models in matgl
+        try:
+            matgl.set_backend("DGL")
+        except Exception:
+            pass # Backend might already be set or not switchable
+            
+        from matgl.ext.ase import PESCalculator
+        model_path = "/opt/models/CHGNet_r2SCAN"
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"CHGNet_r2SCAN model not found at '{model_path}'.")
+        potential = matgl.load_model(model_path)
+        # Move model to device
+        potential.to(use_device)
+        
+        # Wrapper to ensure inputs are moved to the same device as the model
+        class GPUPotentialWrapper:
+            def __init__(self, potential):
+                self.potential = potential
+            def __call__(self, g, lat, state_attr, **kwargs):
+                # Check device of the underlying model
+                device = next(self.potential.model.parameters()).device
+                
+                # Helper to convert and move
+                def to_device(obj):
+                    if obj is None: return None
+                    if hasattr(obj, 'to'): return obj.to(device)
+                    if isinstance(obj, (np.ndarray, list)):
+                        return torch.tensor(obj, device=device, dtype=matgl.float_th)
+                    return obj
+
+                # Move inputs to device
+                g = g.to(device)
+                lat = to_device(lat)
+                state_attr = to_device(state_attr)
+                
+                # Handle kwargs that might need moving
+                if 'total_charge' in kwargs: kwargs['total_charge'] = to_device(kwargs['total_charge'])
+                if 'ext_pot' in kwargs: kwargs['ext_pot'] = to_device(kwargs['ext_pot'])
+
+                return self.potential(g=g, lat=lat, state_attr=state_attr, **kwargs)
+            
+            def __getattr__(self, name):
+                return getattr(self.potential, name)
+
+        return PESCalculator(potential=GPUPotentialWrapper(potential))
     else: raise ValueError(f"Unknown model specified: {model_name}")
 
 def clear_memory():
@@ -58,45 +117,75 @@ def clear_memory():
 def optimize_structure(atoms_obj, model_name, fmax=0.01):
     energies, lattice_constants = [], []
     atoms_obj.calc = get_calculator(model_name)
+    
+    # Revert to ExpCellFilter for memory efficiency and stability
     atoms_filter = ExpCellFilter(atoms_obj)
+        
     opt = FIRE(atoms_filter)
+    
     def save_step_data(a=atoms_filter):
         energies.append(a.atoms.get_potential_energy())
         lattice_constants.append(np.mean(a.atoms.get_cell().lengths()))
-    opt.attach(save_step_data); opt.run(fmax=fmax)
+    
+    opt.attach(save_step_data)
+    
+    # Run optimization with a step limit to prevent freezing
+    max_steps = 100
+    max_attempts = 20 # Total 2000 steps
+    converged = False
+    
+    for i in range(max_attempts):
+        converged = opt.run(fmax=fmax, steps=max_steps)
+        
+        # 🟢 Force memory cleanup between steps
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+        if converged:
+            print(f"Optimization converged in {(i+1)*max_steps} steps or fewer.")
+            break
+        print(f"Optimization attempt {i+1}/{max_attempts} finished (not converged). Continuing...")
+        
+    if not converged:
+        print("Warning: Optimization did not fully converge within the step limit. Returning current structure.")
+
     return atoms_obj, energies, lattice_constants
 
 def _run_single_temp_npt(params):
-    (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, time_step,
-     eq_steps, pressure, ttime, use_device) = params
+    # パラメータの受け取り (pfactorを含む)
+    (model_name, sim_mode, temp, initial_structure_dict, magmom_specie, user_time_step,
+     eq_steps, pressure, ttime, pfactor, use_device) = params
     atoms, calc, dyn = None, None, None
     try:
+        # --- 1. 原子の復元 ---
         atoms = Atoms(**initial_structure_dict)
+        
+        # NPT(Nosé-Hoover)を使うため、maskを作成して直交性を維持します
         if sim_mode == "Legacy (Orthorhombic)":
             cell = atoms.get_cell(); a, b, c = np.linalg.norm(cell[0]), np.linalg.norm(cell[1]), np.linalg.norm(cell[2])
             atoms.set_cell(np.diag([a, b, c]), scale_atoms=True)
             if not NPT._isuppertriangular(atoms.get_cell()): atoms.set_cell(atoms.cell.cellpar(), scale_atoms=True)
-            npt_mask = (1, 1, 1)
+            # 角度(alpha, beta, gamma)を固定し、各軸の伸縮のみを許すマスク
+            npt_mask = [1, 1, 1, 0, 0, 0] 
         else:
             cell = atoms.get_cell(); q, r = np.linalg.qr(cell)
             for i in range(3):
                 if r[i, i] < 0: r[i, :] *= -1
-            atoms.set_cell(r, scale_atoms=True); npt_mask = None
+            atoms.set_cell(r, scale_atoms=True)
+            npt_mask = None # フル緩和
         
         atoms.calc = get_calculator(model_name, use_device=use_device)
         
+        # --- 2. データの準備 ---
         results_data = {
             "energies": [], "instant_temps": [], "volumes": [], "a_lengths": [], "b_lengths": [], "c_lengths": [],
             "alpha": [], "beta": [], "gamma": [], "positions": [], "cells": []
         }
 
-        # ✅ --- 変更点 Start ---
-        # magmomを記録する原子のインデックスと、それに対応する列名を準備
         magmom_indices = []
         magmom_column_keys = []
-        # This needs the calculator object, so we can't do this before atoms.calc is set
         if magmom_specie:
-            # We need to import CHGNetCalculator to check the instance type
             from chgnet.model.dynamics import CHGNetCalculator
             if isinstance(atoms.calc, CHGNetCalculator):
                 symbols = atoms.get_chemical_symbols()
@@ -106,95 +195,97 @@ def _run_single_temp_npt(params):
                         magmom_indices.append(i)
                         key = f"{magmom_specie}_{count}"
                         magmom_column_keys.append(key)
-                        results_data[key] = [] # 各原子用の空リストを初期化
+                        results_data[key] = [] 
                         count += 1
-        # ✅ --- 変更点 End ---
 
         def log_step_data():
             a, b, c, alpha, beta, gamma = atoms.get_cell().cellpar()
-            results_data["energies"].append(atoms.get_potential_energy()); results_data["instant_temps"].append(atoms.get_temperature())
-            results_data["volumes"].append(atoms.get_volume()); results_data["a_lengths"].append(a); results_data["b_lengths"].append(b)
-            results_data["c_lengths"].append(c); results_data["alpha"].append(alpha); results_data["beta"].append(beta)
-            results_data["gamma"].append(gamma); results_data["positions"].append(atoms.get_positions()); results_data["cells"].append(atoms.get_cell())
+            results_data["energies"].append(atoms.get_potential_energy())
+            results_data["instant_temps"].append(atoms.get_temperature())
+            results_data["volumes"].append(atoms.get_volume())
+            results_data["a_lengths"].append(a); results_data["b_lengths"].append(b); results_data["c_lengths"].append(c)
+            results_data["alpha"].append(alpha); results_data["beta"].append(beta); results_data["gamma"].append(gamma)
+            results_data["positions"].append(atoms.get_positions())
+            results_data["cells"].append(atoms.get_cell())
             
-            # ✅ --- 変更点 Start ---
-            # 平均値ではなく、各原子のmagmomを対応するリストに記録
             if magmom_indices:
                 all_magmoms = atoms.get_magnetic_moments()
                 for i, atom_idx in enumerate(magmom_indices):
                     key = magmom_column_keys[i]
                     results_data[key].append(all_magmoms[atom_idx])
-            # ✅ --- 変更点 End ---
 
-        # --- MD Initialization ---
-        MaxwellBoltzmannDistribution(atoms, temperature_K=temp, force_temp=True)
+        # 🟢 Memory cleaner callback
+        def clean_memory_step():
+            # Clear CUDA cache periodically to prevent fragmentation/accumulation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            # gc.collect() is also useful but can be slow, so maybe less frequent?
+            # But empty_cache is the critical one for GPU "stepwise" growth.
+
+        # --- 3. MD初期化 ---
+        init_temp = max(temp, 5.0)
+        MaxwellBoltzmannDistribution(atoms, temperature_K=init_temp, force_temp=True)
         Stationary(atoms)
+        ZeroRotation(atoms)
         
         # ==========================================
-        # ✅ Phase 1: 初期緩和 (安定性重視)
+        # Phase 0: NVT (Langevin) 緩和
         # ==========================================
-        # 目的: MD開始の衝撃で対称性が壊れるのを防ぐ
-        # 設定: バロスタットを重く、硬くする
-        pfactor_heavy = (150 * units.GPa) * atoms.get_volume() * ((75 * units.fs) ** 2)
-        
-        dyn_stable = NPT(
-            atoms, timestep=time_step * units.fs, temperature_K=temp, 
-            externalstress=pressure * units.bar, ttime=ttime, 
-            pfactor=pfactor_heavy, mask=npt_mask
-        )
-        # ログは取らずに、静かに200ステップほど回して落ち着かせる
-        dyn_stable.run(200)
-        
-        # ==========================================
-        # ✅ Phase 2: 本番データ取得 (相転移探索)
-        # ==========================================
-        # 目的: 体積ゆらぎを大きくして相転移を捕まえる
-        # 設定: バロスタットを軽く、柔らかくする (ドーピング設定)
-        B_sensitive = 20 * units.GPa
-        tau_sensitive = 25 * units.fs
-        pfactor_sensitive = B_sensitive * atoms.get_volume() * (tau_sensitive ** 2)
+        # まず体積固定で温度をなじませる
+        dyn_nvt = Langevin(atoms, timestep=0.5 * units.fs, temperature_K=temp, friction=0.02)
+        dyn_nvt.run(100) 
 
-        # 新しい設定でNPTを作り直す
+        # ==========================================
+        # Phase 1 & 2: NPT (Nosé-Hoover)
+        # ==========================================
+        
+        # ✅ 【修正】 0Kでの除算エラー（爆発）を防ぐため、最低温度を1Kに設定する
+        target_temp = max(temp, 1.0)
+
         dyn = NPT(
-            atoms, timestep=time_step * units.fs, temperature_K=temp, 
-            externalstress=pressure * units.bar, ttime=ttime, 
-            pfactor=pfactor_sensitive, mask=npt_mask
+            atoms, 
+            timestep=user_time_step * units.fs, 
+            temperature_K=target_temp,   # temp -> target_temp に変更
+            externalstress=pressure * units.bar,
+            ttime=ttime,     # 呼び出し元から受け取った値 (25fs)
+            pfactor=pfactor, # 呼び出し元から受け取った値 (軽い設定)
+            mask=npt_mask    
         )
         
-        # ここからログを取り始める
+        # Attach memory cleaner (run every 50 steps)
+        dyn.attach(clean_memory_step, interval=50)
+        
+        # 初期緩和 (ログなし)
+        dyn.run(200)
+
+        # 本番 (ログあり)
         dyn.attach(log_step_data, interval=10)
-        dyn.run(eq_steps) # 指定されたステップ数 (例: 20000) 走らせる
+        dyn.run(eq_steps)
         
         final_structure_dict = {'numbers': atoms.get_atomic_numbers(), 'positions': atoms.get_positions(), 'cell': atoms.get_cell(), 'pbc': atoms.get_pbc()}
-        
-        # ❌ --- 削除 --- (古いmagmom処理は不要)
-        # if magmom_specie: results_data[f"{magmom_specie}_magmom"] = results_data.pop("magmoms")
-        # else: results_data.pop("magmoms")
-        
         results_data["set_temps"] = [temp] * len(results_data["energies"])
         return temp, final_structure_dict, results_data
+
     except Exception as e:
         import traceback; print(f"Error at {temp} K:"); traceback.print_exc()
+        if "OutOfMemoryError" in str(e):
+            print("CRITICAL: GPU Out Of Memory. Try reducing --n-gpu-jobs.")
         return None
     finally:
         del atoms, calc, dyn; clear_memory()
 
-# run_npt_simulation_parallel関数は変更不要です
 def run_npt_simulation_parallel(initial_atoms, model_name, sim_mode, magmom_specie, temp_range, time_step, eq_steps,
     pressure, n_gpu_jobs, use_device='cuda', progress_callback=None, traj_filepath=None, append_traj=False):
-    # --- ✅ パラメータ修正ここから ---
-    # 温度制御の時定数 (推奨: 50-100 fs)
-    ttime = 50 * units.fs 
     
-    # 圧力制御のパラメータ (Volume依存性を追加)
-    # 想定する体積弾性率(B)と時定数(tau_p)から算出
-    B_modulus = 150 * units.GPa
-    tau_p = 75 * units.fs
-    volume = initial_atoms.get_volume()
+    # ✅ パラメータを「成功していた古い設定」に戻す
     
-    # ASEの推奨設定: pfactor = B * V * t^2
-    pfactor = B_modulus * volume * (tau_p ** 2)
-    # --- ✅ パラメータ修正ここまで ---
+    # 温度制御: 25 fs (強力な制御)
+    ttime = 25 * units.fs 
+    
+    # 圧力制御: 固定値 (非常に軽い設定、体積依存性なし)
+    # これが相転移の動きやすさを担保していた
+    pfactor = 2e6 * units.GPa * (units.fs**2)
+    
     temperatures = np.arange(temp_range[0], temp_range[1] + temp_range[2], temp_range[2])
     all_results = []
     last_structure_dict = {'numbers': initial_atoms.get_atomic_numbers(), 'positions': initial_atoms.get_positions(), 'cell': initial_atoms.get_cell(), 'pbc': initial_atoms.get_pbc()}
@@ -206,7 +297,8 @@ def run_npt_simulation_parallel(initial_atoms, model_name, sim_mode, magmom_spec
         temp_batch = temperatures[batch_start_index:batch_end_index]
         if not len(temp_batch) > 0: continue
         
-        tasks = [(model_name, sim_mode, t, last_structure_dict, magmom_specie, time_step, eq_steps, pressure, ttime, use_device) for t in temp_batch]
+        # pfactor もタスク引数として渡す
+        tasks = [(model_name, sim_mode, t, last_structure_dict, magmom_specie, time_step, eq_steps, pressure, ttime, pfactor, use_device) for t in temp_batch]
         batch_results = Parallel(n_jobs=n_gpu_jobs, mmap_mode='r+')(delayed(_run_single_temp_npt)(task) for task in tasks)
         
         valid_results = [res for res in batch_results if res is not None]

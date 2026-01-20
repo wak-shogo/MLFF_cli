@@ -43,7 +43,7 @@ echo "Starting simulation..."
 python run_simulation_cli.py \
     --cif-path ./BiCoO3_tetra_1244_op_25.cif \
     --output-dir ./results/BiCoO3_CHGNet \
-    --model CHGNet \
+    --model CHGNet_r2SCAN \
     --temp-end 1200 \
     --n-gpu-jobs 1
 

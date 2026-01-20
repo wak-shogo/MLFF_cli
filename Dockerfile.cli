@@ -28,7 +28,7 @@ COPY . .
 # Install Python packages required for the simulation
 # Note: We are excluding streamlit, supervisor, jupyter, etc.
 RUN pip3 install \
-    torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 \
+    torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --extra-index-url https://download.pytorch.org/whl/cu118 \
     numpy \
     pandas \
     matplotlib \
@@ -36,20 +36,31 @@ RUN pip3 install \
     py3Dmol \
     nglview \
     ipywidgets \
-    pymatgen
+    pymatgen \
+    seaborn \
+    MDAnalysis
 
 # Install the MLFF models
 RUN pip3 install \
+    torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --extra-index-url https://download.pytorch.org/whl/cu118 \
     chgnet \
     mattersim \
     orb-models \
-    nequip-allegro
+    nequip-allegro \
+    dgl -f https://data.dgl.ai/wheels/torch-2.4/cu118/repo.html \
+    matgl
 
 # Clone the MatRIS repository as it's not available on PyPI
-RUN git clone https://github.com/HPC-AI-Team/MatRIS.git
+RUN git clone https://github.com/HPC-AI-Team/MatRIS.git /opt/MatRIS
+
+# Download CHGNet-r2SCAN model
+RUN git clone https://github.com/materialyzeai/matgl.git /opt/matgl_temp && \
+    mkdir -p /opt/models && \
+    cp -r /opt/matgl_temp/pretrained_models/CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES /opt/models/CHGNet_r2SCAN && \
+    rm -rf /opt/matgl_temp
 
 # Add the cloned repository to the Python path
-ENV PYTHONPATH="/workspace/MatRIS:${PYTHONPATH}"
+ENV PYTHONPATH="/opt/MatRIS:${PYTHONPATH}"
 
 
 # Copy the entrypoint script and make it executable
