@@ -23,6 +23,7 @@ from ase.md.npt import NPT
 from ase import units, Atoms
 
 def get_calculator(model_name, use_device='cuda'):
+    print(f"DEBUG: get_calculator called for {model_name} on {use_device}")
     # Check if CUDA is actually available if requested
     if use_device == 'cuda' and not torch.cuda.is_available():
         print("Warning: CUDA requested but not available. Falling back to CPU.")
@@ -319,7 +320,17 @@ def run_npt_simulation_parallel(initial_atoms, model_name, sim_mode, magmom_spec
         
         # pfactor もタスク引数として渡す
         tasks = [(model_name, sim_mode, t, last_structure_dict, magmom_specie, time_step, eq_steps, pressure, ttime, pfactor, use_device) for t in temp_batch]
-        batch_results = Parallel(n_jobs=n_gpu_jobs, mmap_mode='r+')(delayed(_run_single_temp_npt)(task) for task in tasks)
+        
+        if n_gpu_jobs == 1:
+            # Single GPU/process: Run sequentially without joblib overhead to avoid CUDA context issues
+            print(f"Running batch {i+1}/{num_batches} sequentially (n_gpu_jobs=1)...")
+            batch_results = []
+            for task in tasks:
+                res = _run_single_temp_npt(task)
+                batch_results.append(res)
+        else:
+            # Parallel execution
+            batch_results = Parallel(n_jobs=n_gpu_jobs, mmap_mode='r+')(delayed(_run_single_temp_npt)(task) for task in tasks)
         
         valid_results = [res for res in batch_results if res is not None]
         if not valid_results: break
