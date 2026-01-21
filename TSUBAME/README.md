@@ -4,14 +4,19 @@ This directory contains the necessary scripts to run machine learning force fiel
 
 ## 1. Environment Setup
 
-The simulation environment is automatically created and configured when you submit the job script (`job_template.sh`) for the first time.
+First, you need to create a dedicated Python virtual environment and download the required model repositories.
 
-The script checks for the virtual environment in `~/work/python-venvs/macemp_env`. If it is missing, the job will:
-1.  Create the virtual environment on the large storage (`~/work`).
-2.  Install PyTorch, DGL (CUDA version), and other dependencies.
-3.  Download the required `CHGNet_r2SCAN` model.
+1.  **Set up the Python environment:**
+    The provided script will install all necessary pip packages.
+    ```bash
+    bash setup_env.sh
+    ```
 
-**Note:** The first run will take longer (a few minutes) due to these installation steps.
+2.  **Activate the environment:**
+    Before running any simulation, you must activate the environment in your shell:
+    ```bash
+    source ~/python-venvs/macemp_env/bin/activate
+    ```
 
 ## 2. Running a Simulation
 
@@ -32,10 +37,13 @@ Simulations are submitted as jobs to the TSUBAME scheduler.
 
 ## Example
 
-The `job_template.sh` is pre-configured to run a simulation on `BiCoO3_tetra_1244_op_25.cif` using the `CHGNet_r2SCAN` model.
+The `job_template.sh` is pre-configured to run a simulation.
 
 ```bash
-# Submit the example job (Environment will be built automatically if needed)
+# 1. Set up the environment (only once)
+bash setup_env.sh
+
+# 2. Submit the example job
 qsub job_template.sh
 ```
 
