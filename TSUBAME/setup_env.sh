@@ -24,7 +24,7 @@ echo "Installing required Python packages..."
 pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu121
 
 # 2. Install DGL (CUDA 12.1 version compatible with Torch 2.4)
-pip install dgl -f https://data.dgl.ai/wheels/torch-2.4/cu121/repo.html --force-reinstall
+pip install dgl==2.4.0 -f https://data.dgl.ai/wheels/torch-2.4/cu121/repo.html --force-reinstall
 
 # 3. Install other dependencies
 pip install pandas ase matplotlib joblib chgnet mattersim orb-models nequip numpy nglview pynanoflann matgl tqdm
