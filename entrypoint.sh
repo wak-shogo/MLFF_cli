@@ -1,32 +1,41 @@
 #!/bin/bash
-# /cli_runner/entrypoint.sh
+# /workspace/entrypoint.sh
 
 # This script is the entrypoint for the Docker container.
-# It first checks if the Nequip model has been compiled, compiles it if necessary,
-# and then executes the main simulation CLI script.
+# It handles model compilation (if needed) and resource monitoring.
 
 set -e
 
+# --- Compilation for Nequip ---
 MODEL_PATH="/workspace/NequipOLM_model/nequip-oam-l.nequip.pt2"
-
-# Check if the model file exists. If not, compile it.
-# This runs inside the container at runtime, so it has GPU access.
 if [ ! -f "$MODEL_PATH" ]; then
     echo "--- Nequip model not found. Compiling... (This will only happen once) ---"
-    # Create the directory just in case
     mkdir -p "$(dirname "$MODEL_PATH")"
-    # Run the compilation
     nequip-compile \
         nequip.net:mir-group/NequIP-OAM-L:0.1 \
         "$MODEL_PATH" \
         --mode aotinductor \
         --device cuda \
-        --target ase
+        --target ase || echo "Warning: Nequip compilation failed. Some features may be unavailable."
     echo "--- Nequip model compilation complete. ---"
-else
-    echo "--- Nequip model found. Skipping compilation. ---"
 fi
 
-# Execute the main Python script, passing along all arguments given to the container
-echo "--- Starting main simulation script ---"
-exec python3 run_simulation_cli.py "$@"
+# --- Main Execution ---
+if [ $# -eq 0 ]; then
+    # Default behavior: Run a test single-point calculation
+    echo "--- No arguments provided. Running automatic test calculation... ---"
+    CIF_FILE="BiCoO3_tetra_222.cif"
+    MODEL="chgnet"
+    
+    # Check if the CIF file exists, if not use any available .cif
+    if [ ! -f "$CIF_FILE" ]; then
+        CIF_FILE=$(ls *.cif | head -n 1)
+    fi
+
+    echo "Running test: model=$MODEL, file=$CIF_FILE"
+    python3 monitor_resources.py python3 run_simulation_cli.py --cif "$CIF_FILE" --model "$MODEL" --task single_point
+else
+    # Execute with provided arguments
+    echo "--- Executing simulation with arguments: $@ ---"
+    python3 monitor_resources.py python3 run_simulation_cli.py "$@"
+fi

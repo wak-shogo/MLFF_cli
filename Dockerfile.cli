@@ -38,7 +38,9 @@ RUN pip3 install \
     ipywidgets \
     pymatgen \
     seaborn \
-    MDAnalysis
+    MDAnalysis \
+    psutil \
+    nvidia-ml-py3
 
 # Install the MLFF models
 RUN pip3 install \

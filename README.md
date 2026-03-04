@@ -11,9 +11,23 @@ The entire environment is containerized, ensuring that the exact same calculatio
 - **Docker:** The tool is built on Docker. You must have Docker installed.
 - **NVIDIA GPU & Drivers:** The simulations are hardware-accelerated. An NVIDIA GPU with appropriate drivers and CUDA support accessible to Docker is required.
 
+## Quick Start (Automatic Test)
+
+To verify the installation and see the tool in action, simply run the helper script without any arguments:
+
+```bash
+bash run_cli.sh
+```
+
+This will automatically:
+1.  Build the Docker image (if not already built).
+2.  Start a container.
+3.  Perform a **single-point energy calculation** on a default structure (`BiCoO3_tetra_222.cif`).
+4.  **Monitor and report CPU/GPU usage** during the calculation.
+
 ## Usage
 
-All operations, from building the Docker image to running the simulation, are handled by the `run_cli.sh` script.
+All operations are handled by the `run_cli.sh` script.
 
 ### Basic Command
 
@@ -22,48 +36,58 @@ The script is executed with the following format:
 bash run_cli.sh <path_to_input_cif> <path_to_output_dir> [OPTIONS]
 ```
 - `<path_to_input_cif>`: **(Required)** The relative or absolute path to the input structure file in CIF format.
-- `<path_to_output_dir>`: **(Required)** The relative or absolute path to the directory where all results will be saved. The script will create this directory if it does not exist.
-- `[OPTIONS]`: Optional arguments to customize the simulation. See the list below for details.
+- `<path_to_output_dir>`: **(Required)** The relative or absolute path to the directory where all results will be saved.
+- `[OPTIONS]`: Optional arguments to customize the simulation.
 
 ### Example
 
-To run a full simulation on `my_structure.cif` and save the results in a folder named `my_results`, with the simulation ending at 500K:
+To run a full simulation on `my_structure.cif` and save the results in `my_results`:
 
 ```bash
-bash run_cli.sh ./my_structure.cif ./my_results --temp-end 500
+bash run_cli.sh ./my_structure.cif ./my_results --temp-end 500 --model CHGNet
 ```
 
-**Note:** The first time you run the script, it will build the Docker image, which may take several minutes. Subsequent runs will be much faster as they will use the existing image.
+## Resource Monitoring
 
-**Note on Models:** Some models, like NequipOLM, require a one-time compilation step. This will happen automatically the first time you run a simulation with that model. The compiled model will be saved in a new `models/` directory in your project folder to avoid recompilation on future runs.
+Every run automatically monitors and outputs a resource usage summary at the end:
+
+```text
+========================================
+      RESOURCE USAGE SUMMARY
+========================================
+CPU Usage:    Avg: 12.5%, Max: 45.0%
+RAM Usage:    Avg: 8.2%, Max: 10.5%
+GPU Usage:    Avg: 65.2%, Max: 98.0%
+GPU VRAM:     Avg: 15.4%, Max: 20.1%
+========================================
+```
+
+## Advanced: Running with Docker directly
+
+If you prefer to run the container without the helper script, use the following command:
+
+```bash
+docker run --rm --gpus all \
+    -v $(pwd)/inputs:/inputs \
+    -v $(pwd)/outputs:/outputs \
+    md-cli-runner --cif-path /inputs/your_file.cif --output-dir /outputs --model MatterSim
+```
 
 ## Command-Line Arguments (`OPTIONS`)
 
-The following optional arguments can be passed to the script to control the simulation details.
-
 | Argument | Type | Default | Choices | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `--job-type` | string | `full_simulation` | `full_simulation`, `optimize_only` | Specifies the type of job. `optimize_only` will only perform structure optimization. |
-| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, `MatRIS` | The Machine Learning Force Field model to use for the calculation. (Note: MatRIS is included by cloning its GitHub repository into the image). |
-| `--sim-mode` | string | `Realistic (ISIF=3)` | `Realistic (ISIF=3)`, `Legacy (Orthorombic)` | The simulation mode for cell relaxation. |
-| `--skip-optimization`| flag | `False` | | If specified, the initial structure optimization step will be skipped. |
-| `--fmax` | float | `0.001` | | Maximum force (eV/Å) for structure optimization convergence. |
-| `--magmom-specie`| string | `Co` | | The chemical symbol of the species for which to track magnetic moments (e.g., 'Co', 'Fe'). |
-| `--temp-start` | integer | `1` | | The starting temperature for the NPT simulation in Kelvin. |
-| `--temp-end` | integer | `1000` | | The ending temperature for the NPT simulation in Kelvin. |
-| `--temp-step` | integer | `5` | | The temperature step size for the NPT simulation in Kelvin. |
-| `--eq-steps` | integer | `2000` | | The number of equilibration steps to run at each temperature point. |
-| `--n-gpu-jobs` | integer | `3` | | The number of parallel jobs to run during the NPT simulation. Adjust based on GPU memory. |
-| `--enable-cooling`| flag | `False` | | If specified, a cooling phase will be run after the heating phase, returning to the start temperature. |
+| `--task` | string | `full_simulation` | `full_simulation`, `optimize_only`, `single_point` | Specifies the type of task. |
+| `--model` | string | `CHGNet` | `CHGNet`, `MatterSim`, `Orb`, `NequipOLM`, `MatRIS` | The MLFF model to use. |
+| `--temp-start` | integer | `1` | | Starting temperature (K). |
+| `--temp-end` | integer | `1000` | | Ending temperature (K). |
+| `--eq-steps` | integer | `2000` | | Equilibration steps per temperature point. |
+| `--n-gpu-jobs` | integer | `3` | | Number of parallel GPU jobs. |
 
 ## Output Files
 
-The simulation will produce the following files in the specified output directory:
-
-- `optimized_structure.cif`: The initial structure after geometry optimization.
-- `trajectory.xyz`: The full trajectory of the NPT simulation in XYZ format.
-- `npt_vs_temp.png`: A plot of lattice parameters and volume against temperature.
-- `npt_summary_full.csv`: A CSV file with detailed data for every step of the simulation.
-- `npt_last_steps.csv`: A CSV file containing only the last step data for each temperature point.
-- `npt_summary_stats.csv`: A CSV file with the mean and standard deviation of properties at each temperature.
-- `magmoms_per_atom.csv`: (If `magmom_specie` is used) A CSV file tracking the magnetic moment of each specified atom over time.
+- `optimized_structure.cif`: Initial structure after optimization.
+- `trajectory.xyz`: Full trajectory of the simulation.
+- `npt_vs_temp.png`: Plot of lattice parameters vs temperature.
+- `npt_summary_full.csv`: Detailed data for every step.
+- `npt_summary_stats.csv`: Mean and standard deviation of properties.

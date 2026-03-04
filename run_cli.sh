@@ -7,7 +7,25 @@ set -e
 # --- Configuration ---
 IMAGE_NAME="md-cli-runner"
 
-# --- Argument Validation ---
+# Get the absolute path of the directory where this script is located
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+# --- Docker Build ---
+if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
+    echo "--- Docker image '$IMAGE_NAME' not found. Building... ---"
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.cli" "$SCRIPT_DIR"
+    echo "--- Build complete ---"
+fi
+
+# --- Main Logic ---
+if [ "$#" -eq 0 ]; then
+    # No arguments provided: Run automatic test
+    echo "--- No arguments provided. Running automatic test inside container... ---"
+    docker run --rm --gpus all "$IMAGE_NAME"
+    exit 0
+fi
+
+# Argument Validation for custom run
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 <path_to_input_cif> <path_to_output_dir> [additional_args_for_cli...]"
     echo "Example: $0 ./my_structure.cif ./results --model CHGNet --temp-end 500"
@@ -16,7 +34,6 @@ fi
 
 INPUT_CIF_PATH="$1"
 OUTPUT_DIR_PATH="$2"
-# Get all arguments from the 3rd one onwards
 ADDITIONAL_ARGS="${@:3}"
 
 if [ ! -f "$INPUT_CIF_PATH" ]; then
@@ -25,49 +42,18 @@ if [ ! -f "$INPUT_CIF_PATH" ]; then
 fi
 
 # --- Path Conversion & Setup ---
-# Get the absolute path of the directory where this script is located
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-
-# Convert user-provided paths to absolute paths to ensure they mount correctly
 INPUT_CIF_ABS=$(realpath "$INPUT_CIF_PATH")
-# Create the output directory and a persistent model directory on the host
 mkdir -p "$OUTPUT_DIR_PATH"
 mkdir -p "$SCRIPT_DIR/models/NequipOLM_model"
 OUTPUT_DIR_ABS=$(realpath "$OUTPUT_DIR_PATH")
 MODELS_DIR_ABS=$(realpath "$SCRIPT_DIR/models")
 
-# Define paths as they will be seen inside the container
 CONTAINER_INPUT_DIR="/inputs"
 CONTAINER_OUTPUT_DIR="/outputs"
-CONTAINER_MODELS_DIR="/workspace/models" # Nequip model will be compiled into a subdir of this
 CONTAINER_CIF_PATH="${CONTAINER_INPUT_DIR}/$(basename "$INPUT_CIF_ABS")"
-
-# --- Docker Build ---
-# Check if the image already exists. If not, build it.
-if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
-    echo "--- Docker image '$IMAGE_NAME' not found. Building... ---"
-    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.cli" "$SCRIPT_DIR"
-    echo "--- Build complete ---"
-else
-    echo "--- Using existing Docker image '$IMAGE_NAME' ---"
-fi
-
 
 # --- Docker Run ---
 echo "--- Starting simulation container ---"
-echo "Host input CIF: $INPUT_CIF_ABS"
-echo "Host output dir:  $OUTPUT_DIR_ABS"
-echo "Host models dir:  $MODELS_DIR_ABS/NequipOLM_model"
-echo "Container CIF path: $CONTAINER_CIF_PATH"
-echo "-------------------------------------"
-
-# Execute the docker container
-# --rm: Automatically remove the container when it exits
-# --gpus all: Provide access to all available GPUs
-# -v: Mount volumes to get data in and out of the container
-#   - Mount the directory containing the input file as /inputs
-#   - Mount the host output directory as /outputs
-#   - Mount the host models directory to persist compiled models
 docker run \
     --rm \
     --gpus all \
