@@ -1,0 +1,43 @@
+# /cli_runner/Dockerfile.minimal
+
+# Use a smaller runtime image
+FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y 
+    git 
+    python3-pip 
+    curl 
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Copy only necessary files
+COPY . .
+
+# Install ONLY essential packages + CHGNet/MatGL
+RUN pip3 install 
+    torch==2.4.0 --extra-index-url https://download.pytorch.org/whl/cu118 
+    numpy 
+    pandas 
+    matplotlib 
+    ase 
+    pymatgen 
+    psutil 
+    nvidia-ml-py3 
+    chgnet 
+    matgl
+
+# Download CHGNet-r2SCAN model specifically
+RUN git clone https://github.com/materialyzeai/matgl.git /opt/matgl_temp && 
+    mkdir -p /opt/models && 
+    cp -r /opt/matgl_temp/pretrained_models/CHGNet-MatPES-r2SCAN-2025.2.10-2.7M-PES /opt/models/CHGNet_r2SCAN && 
+    rm -rf /opt/matgl_temp
+
+# Entrypoint setup
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["/workspace/entrypoint.sh"]

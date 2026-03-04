@@ -6,18 +6,22 @@
 
 set -e
 
-# --- Compilation for Nequip ---
+# --- Compilation for Nequip (if available) ---
 MODEL_PATH="/workspace/NequipOLM_model/nequip-oam-l.nequip.pt2"
-if [ ! -f "$MODEL_PATH" ]; then
-    echo "--- Nequip model not found. Compiling... (This will only happen once) ---"
-    mkdir -p "$(dirname "$MODEL_PATH")"
-    nequip-compile \
-        nequip.net:mir-group/NequIP-OAM-L:0.1 \
-        "$MODEL_PATH" \
-        --mode aotinductor \
-        --device cuda \
-        --target ase || echo "Warning: Nequip compilation failed. Some features may be unavailable."
-    echo "--- Nequip model compilation complete. ---"
+if command -v nequip-compile &> /dev/null; then
+    if [ ! -f "$MODEL_PATH" ]; then
+        echo "--- Nequip model not found. Compiling... (This will only happen once) ---"
+        mkdir -p "$(dirname "$MODEL_PATH")"
+        nequip-compile \
+            nequip.net:mir-group/NequIP-OAM-L:0.1 \
+            "$MODEL_PATH" \
+            --mode aotinductor \
+            --device cuda \
+            --target ase || echo "Warning: Nequip compilation failed."
+        echo "--- Nequip model compilation complete. ---"
+    fi
+else
+    echo "--- Nequip is not installed in this environment. Skipping compilation. ---"
 fi
 
 # --- Main Execution ---

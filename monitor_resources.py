@@ -48,8 +48,7 @@ class ResourceMonitor:
         self.report()
 
     def report(self):
-        print("
-" + "="*40)
+        print("\n" + "="*40)
         print("      RESOURCE USAGE SUMMARY")
         print("="*40)
         if self.cpu_usage:
@@ -62,8 +61,7 @@ class ResourceMonitor:
             print(f"GPU VRAM:     Avg: {sum(self.gpu_mem_usage)/len(self.gpu_mem_usage):.1f}%, Max: {max(self.gpu_mem_usage):.1f}%")
         elif not HAS_NVML:
             print("GPU Monitoring: Not Available (NVIDIA driver/NVML not found)")
-        print("="*40 + "
-")
+        print("="*40 + "\n")
 
 if __name__ == "__main__":
     # If run as a script, it expects to wrap another command

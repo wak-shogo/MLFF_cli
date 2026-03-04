@@ -5,19 +5,46 @@
 set -e
 
 # --- Configuration ---
-IMAGE_NAME="md-cli-runner"
+IMAGE_NAME_FULL="md-cli-runner"
+IMAGE_NAME_MINIMAL="md-cli-runner-minimal"
+IMAGE_NAME="$IMAGE_NAME_FULL"
+DOCKERFILE="Dockerfile.cli"
 
 # Get the absolute path of the directory where this script is located
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-# --- Docker Build ---
-if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
-    echo "--- Docker image '$IMAGE_NAME' not found. Building... ---"
-    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile.cli" "$SCRIPT_DIR"
+# --- Helper Functions ---
+build_image() {
+    local name=$1
+    local file=$2
+    echo "--- Building Docker image '$name' from '$file'... ---"
+    docker build -t "$name" -f "$SCRIPT_DIR/$file" "$SCRIPT_DIR"
     echo "--- Build complete ---"
+}
+
+# --- Command Line Arguments ---
+if [ "$1" == "build" ]; then
+    build_image "$IMAGE_NAME_FULL" "Dockerfile.cli"
+    exit 0
+elif [ "$1" == "build-minimal" ]; then
+    build_image "$IMAGE_NAME_MINIMAL" "Dockerfile.minimal"
+    exit 0
+fi
+
+# Check for --minimal flag in regular run
+if [[ "$*" == *"--minimal"* ]]; then
+    IMAGE_NAME="$IMAGE_NAME_MINIMAL"
+    DOCKERFILE="Dockerfile.minimal"
+    # Remove --minimal from arguments
+    set -- "${@/--minimal/}"
 fi
 
 # --- Main Logic ---
+# Auto-build if image doesn't exist
+if ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
+    build_image "$IMAGE_NAME" "$DOCKERFILE"
+fi
+
 if [ "$#" -eq 0 ]; then
     # No arguments provided: Run automatic test
     echo "--- No arguments provided. Running automatic test inside container... ---"
@@ -28,7 +55,9 @@ fi
 # Argument Validation for custom run
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 <path_to_input_cif> <path_to_output_dir> [additional_args_for_cli...]"
-    echo "Example: $0 ./my_structure.cif ./results --model CHGNet --temp-end 500"
+    echo "Special commands:"
+    echo "  $0 build          - Build the full Docker image"
+    echo "  $0 build-minimal  - Build the minimal Docker image (CHGNet only)"
     exit 1
 fi
 
@@ -53,7 +82,7 @@ CONTAINER_OUTPUT_DIR="/outputs"
 CONTAINER_CIF_PATH="${CONTAINER_INPUT_DIR}/$(basename "$INPUT_CIF_ABS")"
 
 # --- Docker Run ---
-echo "--- Starting simulation container ---"
+echo "--- Starting simulation container using image: $IMAGE_NAME ---"
 docker run \
     --rm \
     --gpus all \
