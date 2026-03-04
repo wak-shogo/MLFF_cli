@@ -32,12 +32,23 @@ elif [ "$1" == "build-minimal" ]; then
 fi
 
 # Check for --minimal flag in regular run
-if [[ "$*" == *"--minimal"* ]]; then
+NEW_ARGS=()
+USE_MINIMAL=false
+for arg in "$@"; do
+    if [ "$arg" == "--minimal" ]; then
+        USE_MINIMAL=true
+    else
+        NEW_ARGS+=("$arg")
+    fi
+done
+
+if [ "$USE_MINIMAL" = true ]; then
     IMAGE_NAME="$IMAGE_NAME_MINIMAL"
     DOCKERFILE="Dockerfile.minimal"
-    # Remove --minimal from arguments
-    set -- "${@/--minimal/}"
 fi
+
+# Reset arguments to exclude --minimal
+set -- "${NEW_ARGS[@]}"
 
 # --- Main Logic ---
 # Auto-build if image doesn't exist
@@ -47,7 +58,7 @@ fi
 
 if [ "$#" -eq 0 ]; then
     # No arguments provided: Run automatic test
-    echo "--- No arguments provided. Running automatic test inside container... ---"
+    echo "--- No arguments provided. Running automatic test inside container ($IMAGE_NAME)... ---"
     docker run --rm --gpus all "$IMAGE_NAME"
     exit 0
 fi
